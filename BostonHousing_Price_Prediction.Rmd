@@ -1,0 +1,387 @@
+---
+title: "BOSTON HOUSING MARKET PREDICTION"
+author: "steve dubois"
+date: "4/4/2019"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+## Overview
+In this report I detail the machine learning (ML) models I implemented to accurately predict the housing prices in Boston suburbs. The data set for this experiment is accessed from the UCI Machine Learning repository via https://archive.ics.uci.edu/ml/datasets/Housing. The report is organized in such a way as to demonstrate the entire process right from getting and cleaning the data, to exploratory analysis of the data set to understand the distribution and importance of various features in influencing the algorithm, to coming with a hypothesis, training ML models, evaluation of the models, etc.
+
+
+## Introduction
+title: "Boston Housing Price Prediction"
+The data set (Boston Housing Price) was taken from the StatLib library which is maintained at Carnegie Mellon University and is freely available for download from the UCI Machine Learning Repository. The data set consists of 506 observations of 14 attributes. The median value of house price in $10000s, denoted by MEDV, is the outcome or the dependent variable in our model. Below is a brief description of each feature and the outcome in our data set:
+Variables:
+
+1. CRIM – per capita crime rate by town
+2. ZN – proportion of residential land zoned for lots over 25,000 sq.ft
+3. CHAS – Charles River dummy variable (1 if tract bounds river; else 0) 
+4. NOX – nitric oxides concentration (parts per 10 million)
+5. RM – average number of rooms per dwelling
+6. AGE – proportion of owner-occupied units built prior to 1940
+7. DIS – weighted distances to five Boston employment centers
+8. RAD – index of accessibility to radial highways
+9. INDUS – proportion of non-retail business acres per town
+10. TAX – full-value property-tax rate per $10,000
+11. PTRATIO – pupil-teacher ratio by town
+12. B – 1000(Bk - 0.63)^2 where Bk is the proportion of blacks by town 
+13. LSTAT – % lower status of the population
+14. MEDV – Median value of owner-occupied homes in $10000’s (response variable)
+
+## Getting and Cleaning the Data
+Getting the data into R as an R object, cleaning the data and transforming it as a neat and usable R data frame or equivalent. The df (Boston housing) file consists of the actual data,  The R-function readLiness() reads data from fixed-width files. Below, I use subsetting and the strsplit R function to extract the columns/predictors and column names alone from this file.
+```{r, suppressMessages = TRUE, echo=FALSE, warning = FALSE, message=FALSE,tidy=TRUE}
+## LOADING REQUISITE R PACKAGES
+
+library(knitr)
+
+library(MASS)
+library(stringr)
+library(reshape2)
+library(plyr)
+library(caTools)
+library(ISLR)
+library(gmodels)  
+library(broom)
+library(tidyverse)
+library(tidyr)
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(randomForest)
+library(caret)
+library(xgboost)
+library(mlr)
+library(optparse)
+library(data.table)
+library(ggplot2)
+library(gbm)
+library(ggpubr)
+library(rpart)
+library(e1071)
+library(rpart.plot)
+library(plotly)
+library(rattle)
+library(GGally)
+library(neuralnet)
+library(nnet)
+```
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(dev='pdf')
+knitr::opts_chunk$set(fig.width=8,fig.height=6)
+```
+```{r, echo=TRUE, message=FALSE,tidy=TRUE, warning=FALSE}
+# DATA DOWNLOWNED
+text <- readLines("boston.txt")
+text <- text[c(-1, -2)]
+```
+
+### PREPROCESSING/TRANSFORM DATA
+#
+```{r, echo=TRUE, message=FALSE,tidy=TRUE}
+i=1
+df2 <- NULL
+while (i <= 1012) {
+    if (i%%2 == 0) {
+i=i+1 } else i
+j <- i + 1
+texti <- as.numeric(strsplit(text, " ")[[i]])
+texti <- na.omit(texti)
+textj <- as.numeric(strsplit(text, " ")[[j]])
+textj <- na.omit(textj)
+textC <- as.vector(c(texti, textj))
+df <- NULL
+df <- rbind(df2, textC)
+colnames(df) <- c("CRIM", "ZN", "INDUS", "CHAS", "NOX", "RM", "AGE", "DIS",
+"RAD", "TAX", "PTRATIO", "B", "LSTAT", "MEDV") 
+rownames(df) <- c()
+df2 <- df
+i <- j + 1
+df <- as.data.frame(df) }
+# first 6 observations
+head(df)
+
+
+
+
+```
+
+
+Now, let us check and explore the cleaned data frame containing the housing data. The df R object is of class ‘data.frame’, which is very easy to work with using R scripts. The str() function is powerful in displaying the structure of an R dataframe. Below, the output of str() compactly provides the relevant information of our dataframe, like the number of observations, number of variables, names of each column, the class of each column, and sample values from each column.
+
+#
+```{r, echo=TRUE, message=FALSE,tidy=TRUE}
+# DiSPLAY CLASS OF R OBJECY the class of the R object "df"
+class(df)
+```
+#
+```{r, echo=TRUE, message=FALSE,tidy=TRUE}
+# DiSPLAY SUMMARY STATISTICS
+summary(df)
+```
+
+#
+```{r, echo=TRUE, message=FALSE,tidy=TRUE}
+# DISPLAY  TRUCTURE OF HOUSING .df data-frame-set
+str(df)
+```
+
+
+### Data Exploration
+
+Let us visualize the distribution and density of the outcome, MEDV. The black curve represents the density. In addition, the boxplot is also plotted to bring an additional perspective. We see that the median value of housing price is skewed to the right, with a number of outliers to the right. It may be useful to transform ‘MEDV’ column using functions like natural logarithm, while modeling the hypothesis for regression analysis.
+
+#
+```{r, echo=TRUE, message=FALSE,tidy=TRUE}
+
+  p01 <- ggplot(df, aes(x = MEDV)) + xlab("Median value of owner-occupied homes")  + geom_histogram(aes(y = ..density..), binwidth = 1, 
+  colour = "black", fill = "green") + geom_density(alpha = 0.8, fill = "#FF6666") + 
+     ylim(0, 0.075)
+  p01
+p02 <- ggplot(df, aes(y = MEDV, x = RM)) + xlab("average number of rooms per dwelling") + ylab("Median value of owner-occupied homes") + geom_point(colour = "red") + geom_smooth(method = lm, colour = "blue") + geom_smooth(colour = "orange")
+p02
+p03 <- ggplot(df, aes(y = MEDV, x = LSTAT)) + xlab("%lower status of the population") + ylab("Median value of owner-occupied homes") + geom_point(colour = "green") + geom_smooth(method = lm, colour = "yellow") + geom_smooth(colour = "red")
+p03
+
+p04 <- ggplot(df, aes(y = MEDV, x = PTRATIO)) + xlab("pupil-teacher ratio by town") + ylab("Median value of owner-occupied homes") + geom_point(colour = "black") +
+  geom_smooth(method = lm, colour = "yellow") + geom_smooth(colour = "green")
+p04
+```
+
+#
+```{r, echo=TRUE, message=FALSE,tidy=TRUE} 
+b0x <- ggplot(df, aes(y = MEDV, x = c(1:506))) + geom_boxplot(alpha=0.8, colour = "black", fill = "green") + coord_flip()
+b0x
+```
+Now, let us do scatter plot of some of the important variables (based on intuition) with the outcome variable MEDV. We see that there is strong positive or negative correlation between these variables and the outcome. It is also obviously evident that INDUS and NOX are strongly positively correlated with one another, as nitric oxide levels tend to go up with increase in industries.
+
+#
+```{r, echo = TRUE}
+plot(df[,c(3,5,6,11,13,14)],pch=3)
+```
+#### Correlation and near zero variance
+A few important properties to check now are the correlation of input features with the dependent variable, and to check if any feature has near zero variance (values not varying much within the column).
+
+#
+```{r, echo=TRUE, message=FALSE,tidy=TRUE}
+suppressMessages(library(caret))
+# Correlation of each independent variable with the dependent variable
+cor(df, df$MEDV)
+```
+
+We see that the number of rooms RM has the strongest positive correlation with the median value of the housing price, while the percentage of lower status population, LSTAT and the pupil-teacher ratio, PTRATIO, have strong negative correlation. The feature with the least correlation to MEDV is the proximity to Charles River, CHAS.
+
+
+#
+```{r, echo=TRUE, message=FALSE,tidy=TRUE}
+#### Calulate near zero variance 
+nzv <- nearZeroVar(df, saveMetrics = TRUE)
+sum(nzv$nzv)
+```
+The output shows that there are no variable with zero or near zero variance.
+
+
+### Feature Engineering and Data Partitioning
+Next we perform centering and scaling on the input features. Then we partition the data on a 7/3 ratio as training/test data sets.
+
+#
+```{r, echo = TRUE, supppressMessages + TRUE}
+# Centering#caling of input features
+
+df <- cbind(scale(df[1:13]), df[14])
+
+set.seed(12345)
+#Do data partitioning
+inTrain <- createDataPartition(y = df$MEDV, p = 0.70, list = FALSE)
+training <- df[inTrain,]
+testing <- df[-inTrain,]
+```
+
+
+###Regression Models
+
+###Linear model 1
+
+First, let us try generalized linear regression model with MEDV as the dependent variable and all the remaining variables as independent variables. We train the model with the training data set. For this linear model, below is the coefficients of all the features, and the intercept. Next, we use the trained model to predict the outcome (MEDV) for the testing data set. A good metric to test the accuracy of the model is to calculate the root-mean squared error, which is given by
+
+$$\sqrt{\sum_{i=1}^{n} \frac{(y_{pred_i} - y_{act_i})^2} {n}}$$
+#
+```{r, echo=TRUE, message=FALSE,tidy=TRUE}
+set.seed(12345)
+#Try linear model using all features
+fit.lm <- lm(MEDV~.,data = training)
+
+#check cooeffs
+data.frame(coef = round(fit.lm$coefficients,2))
+summary(fit.lm)
+
+ggplot(data = df, aes(df$NOX, df$MEDV)) + geom_smooth()
+```
+
+#
+```{r, echo=TRUE, message=FALSE,tidy=TRUE}
+set.seed(12345)
+
+#predict on test set
+pred.lm <- predict(fit.lm, newdata = testing)
+
+# Root-mean squared error
+rmse.lm <- sqrt(sum((pred.lm - testing$MEDV)^2)/
+                   length(testing$MEDV))
+                   
+c(RMSE = rmse.lm, R2 = summary(fit.lm)$r.squared, P_value = summary(fit.lm)$coefficients[1,4])
+data.frame(RMSE = rmse.lm, R2 = summary(fit.lm)$r.squared, P_value = summary(fit.lm)$coefficients[1,4])
+
+
+```
+
+We see that the RMSE is 4.381992 and the R2R2 value is 0.7239 for this model.
+
+
+###Linear model 2
+
+We also saw that the output variable MEDV was skewed to the right. Performing a log transformation would normalize the distribution of MEDV. Let us perform glm with log(MEDV) as the outcome and all remaining features as input. We see that the RMSE value has reduced for this model.
+
+#
+```{r, echo=TRUE, message=FALSE,tidy=TRUE}
+set.seed(12345)
+#Try linear model using all features
+fit.lm1 <- lm(MEDV ~ CRIM + ZN + CHAS + NOX + RM + DIS + RAD + TAX + PTRATIO + B + LSTAT, data = training)
+
+summary(fit.lm1)
+set.seed(12345)
+#predict on test set
+pred.lm1 <- predict(fit.lm1, newdata = testing)
+# Root-mean squared error
+rmse.lm1 <- sqrt(sum((exp(pred.lm1) - testing$MEDV)^2)/
+                   length(testing$MEDV))
+
+c(RMSE = rmse.lm1, R2 = summary(fit.lm1)$r.squared, P_value = summary(fit.lm1)$coefficients[1,4])
+
+c(RMSE = rmse.lm1, R2 = summary(fit.lm1)$r.squared)                   
+
+
+```
+We see that the RMSE is 4.381992 and the R2R2 value is 0.7239 for this model.
+
+
+
+Let us examine the calculated p-value for each feature in the linear model. Any feature which is not significant (p<0.05) is not contributing significantly for the model, probably due to multicollinearity among other features. We see that the features, ZN, INDUS, and AGE are not significant.
+
+
+#
+```{r, echo=TRUE, message=FALSE,tidy=TRUE}
+library(car)
+summary(fit.lm1)
+```
+
+vif(fit.lm1)
+Variance inflation factors are computed using vif() for the standard errors of linear model coefficient estimates. It is imperative for the vif to be less than 5 for all the features. We see that the vif is greater than 5 for RAD and TAX.
+
+###Linear model 3
+Based on all these observations, we now construct a new linear model as below:
+log(MEDV) ~ CRIM + CHAS + NOX + RM + DIS + PTRATIO + RAD + B + LSTAT
+
+#
+```{r, echo=TRUE, message=FALSE,tidy=TRUE}
+set.seed(12345)
+#Try simple linear model using selected features
+fit.lm2 <- lm(formula = MEDV ~ CRIM + CHAS + NOX + RM + DIS + PTRATIO + 
+            RAD + B + LSTAT, data = training)
+summary(fit.lm2)
+
+set.seed(12345)
+#predict on test set
+pred.lm2 <- predict(fit.lm2, newdata = testing)
+
+# Root-mean squared error
+rmse.lm2 <- sqrt(sum((exp(pred.lm2) - testing$MEDV)^2)/length(testing$MEDV))
+                   
+c(RMSE = rmse.lm2, R2 = summary(fit.lm2)$r.squared)
+```
+
+
+This model is marginally less accurate than linear model 2, based on slight increase in RMSE and slight decrease in R2R2 value. Let us plot the predicted vs actual values of the outcome MEDV.
+
+### Linear Model 3 Plot of Predicted Prices vs Actual Prices
+#
+```{r, echo=TRUE, message=FALSE,tidy=TRUE}
+plot(pred.lm2,testing$MEDV, xlab = "Predicted Price", ylab = "Actual Price")
+
+# Diagnostics plots
+layout(matrix(c(1,2,3,4),2,2))
+plot(fit.lm2)
+```
+Linear Model 3 -- TABLE
+###Table Shoming 1st six observations – Actual vs Predicted Price
+#
+```{r, echo=TRUE, message=FALSE,tidy=TRUE}
+table <- data.frame(x = pred.lm2*10, y = testing$MEDV)
+names(table) <- c(xlab = "Predicted_Price", ylab = "Actual_Price")
+head(table)
+```
+
+##RANDOM FOREST
+For random forest implementation, we could use the linear model formula of MEDV ~ . (meaning MEDV is the outcome with all other features as input). Inspecting the results, we see that the random forest model has given the best accuracy so far.  Better model peformance is expected.
+
+#
+```{r, echo=TRUE, message=FALSE,tidy=TRUE}
+library(randomForest)
+set.seed(12345)
+fit.rf <- randomForest(formula = MEDV ~ ., data = training) 
+fit.rf
+
+pred.rf <- predict(fit.rf, testing)
+
+rmse.rf <- sqrt(sum(((pred.rf) - testing$MEDV)^2)/length(testing$MEDV))
+```
+
+#
+```{r, echo=TRUE, message=FALSE,tidy=TRUE}
+table <- c(RMSE = rmse.rf, Rsquared = mean(fit.rf$rsq)) 
+print(table)
+```
+
+### Random Forest Model Plot of Predicted Prices vs Actual Prices
+#
+```{r, echo=TRUE, message=FALSE,tidy=TRUE}
+plot(pred.rf, testing$MEDV, xlab = "Predicted Price", ylab = "Actual Price", pch = 3)
+
+
+
+pred.rf
+```
+
+
+##RANDOM FOREST MODEL TABLE 
+###Table Shoming 1st six observations --  Actual vs Predicted Price 
+#
+```{r, echo=TRUE, message=FALSE,tidy=TRUE}
+table1 <- data.frame(x = pred.rf, y = testing$MEDV)
+names(table1) <- c("Predicted_Price", ylab = "Actual_Price")
+head(table1)
+```
+
+
+##MODEL COMPARISON
+#
+```{r, echo=TRUE, message=FALSE,tidy=TRUE}
+Linear_Model_1 <- c(RMSE = rmse.lm, R2 = summary(fit.lm)$r.squared)
+Linear_Model_2 <- c(RMSE = rmse.lm1, R2 = summary(fit.lm1)$r.squared)
+Linear_Model_3 <- c(RMSE = rmse.lm2, R2 = summary(fit.lm2)$r.squared)
+Random_Forest_Model <- c(RMSE = rmse.rf, R2 = mean(fit.rf$rsq))
+model_comparison <- rbind(Linear_Model_1, Linear_Model_2, Linear_Model_3, Random_Forest_Model)
+model_comparison
+```
+
+##First 6 predictions
+#
+```{r, echo=TRUE, message=FALSE,tidy=TRUE}
+head(table1)
+```
+
+##Conclusion
+We experimented with several linear regression models and a random forest model to predict the housing prices in Boston suburbs. Among these models, the Random forest model with a simple linear relationship between the outcome and all input features yielded the best model to predict outcomes, as determined from having the smallest RMSE (i.e., root mean squared error) and the highest R2 (i.e., accuracy | R-squared statistic, and the smallest p-value (greatest significance).
