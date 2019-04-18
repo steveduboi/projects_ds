@@ -144,13 +144,15 @@ pp1 <- as.data.frame(pp1)
 colnames(pp1) <-  c("Atribute_Feature", "Correlation_to_Prices")
 pp1 <- pp1 %>% arrange(desc(Correlation_to_Prices))
 pp1
+    
+    
+g <- ggplot(pp1, aes(x = Atribute_Feature, y = Correlation_to_Prices, color = "orange"), fill = "blue") + geom_col(position = "dodge") + ggtitle("STRENGTH OF CORRELATION HOUSING ATTRIBUTE TO HOUSING") 
+g
 
-p06 <- ggplot(pp1) +  geom_col(aes(x = Atribute_Feature, y = Correlation_to_Prices, fill = Correlation_to_Prices)) + ggtitle("STRENGTH OF CORRELATION HOUSING ATTRIBUTE TO HOUSING") 
-
-ggplotly(p06 = ggplot2::last_plot()) %>% layout(width = 1000, height = 500)
 ```
-##CORRELATION HOUSING ATTRIBUTE TO HOUSING
-####Calulate near zero variance
+
+
+###Calulate near zero variance
 ```{r, echo=TRUE, message = FALSE,tidy = TRUE}
 nzv <- nearZeroVar(df, saveMetrics = TRUE)
 sum(nzv$nzv)
@@ -176,8 +178,8 @@ ggplotly(p04 = ggplot2::last_plot())
 
 p05 <- ggplot(df, aes(y = MEDV, x = CRIM)) + xlab("per capita crime rate by town") + ylab("Median value of owner-occupied homes") + geom_point(colour = "black") + geom_smooth(method = lm, colour = "yellow") + geom_smooth(colour = "red") 
 
-ggplotly(p05 = ggplot2::last_plot()) %>% layout(autosize = F, width = 500, height = 500)
-
+ggplotly(p05 = ggplot2::last_plot() %>% layout(autosize = F, width = 500, height = 500)
+)
 
 
 ```
@@ -186,10 +188,7 @@ ggplotly(p05 = ggplot2::last_plot()) %>% layout(autosize = F, width = 500, heigh
 b0x <- ggplot(df, aes(y = MEDV, x = c(1:506))) + geom_boxplot(alpha = 0.8, colour = "black", fill = "green") + coord_flip()
 b0x
 
-
-
 ```
-
 
 Now, let us do scatter plot of some of the important variables (based on intuition) with the outcome variable MEDV. We see that there is strong positive or negative correlation between these variables and the outcome. It is also obviously evident that INDUS and NOX are strongly positively correlated with one another, as nitric oxide levels tend to go up with increase in industries.
 ```{r, echo = TRUE}
