@@ -1,0 +1,376 @@
+---
+title: "Prediction Model for Income Classification"
+author: "steve dubois"
+date: "4/22/2019"
+output:
+  pdf_document: default
+  html_document: default
+subtitle: Under $50000 vs Over $50000
+always_allow_html: yes
+---
+
+<style type="text/css">
+h1.title {
+  font-size: 38px;
+  color: DarkRed;
+  text-align: center;
+}
+h3.subtitle {
+  font-size: 20px;
+  color: DarkRed;
+  text-align: center;
+}
+h4.author { /* Header 4 - and the author and data headers use this too  */
+    font-size: 18px;
+  font-family: "Times New Roman", Times, serif;
+  text-align: center;
+}
+h4.date { /* Header 4 - and the author and data headers use this too  */
+  color: DarkRed;
+  font-size: 18px;
+  color: DarkBlue;
+  text-align: center;
+}
+</style>
+
+
+##ABSTRACT
+The prominent inequality of wealth and income is a huge concern especially in the United States.  The likelihood of diminishing poverty is one valid reason to reduce the world's surging level of economic inequality.  The principle of universal moral equality ensures sustainable development and improves the economic stability of a nation.  Governments in different countries have been trying their best to address this problem and provide an optimal solution.  The aim here to show the usage of machine learning techniques in providing a solution to the income equality problem.  The UCI Adult Dataset has been used for the purpose.  Specifically, several machine learning classification models have been compared to predict whether a person's yearly income in the US falls in the income category of either greater than 50K dollars or less/equal to 50K dollars category based on a certain set of attributes.  So, what_Y(>50, <=50) is predicted given (X1, X2, X3,...Xn), where Y is an income level, and X is a statistic feature of an individual.
+
+
+```{r setup, echo = FALSE, include=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+##LIBRRARIES USED - R PACKAGES 
+```{r, echo = TRUE, message=FALSE, warning=FALSE}
+  library(knitr)
+  library(ggvis)
+  library(ISLR)
+  library(e1071)
+  library(gmodels)  
+  library(tidyverse)
+  library(tidyr)
+  library(dplyr)
+  library(readr)
+  library(ggplot2)
+  library(randomForest)
+  library(caret)
+  library(data.table)
+  library(gbm)
+  library(rpart)
+  library(rpart.plot)
+  library(plotly)
+  library(ggvis)
+  library(neuralnet)
+  library(MASS)
+```
+
+
+
+##LOADING CENSUS DATA 
+```{r, echo = TRUE}
+train <- fread("http://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.data")
+test <- fread("http://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.test")
+```
+
+
+
+### Initializing headers
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+
+feature <- c("Age","Work_Class", "Final_Weight", "Education", "Education_Num", "Marital_Status", "Occupation",   "Relationship", "Race", "Sex", "Capital_Gain", "Capital_Loss", "Hours_Per_Week", "Native_Country", "IncomeCLASS")
+
+train <- as.data.frame(train)
+test <- as.data.frame(test)
+#Adding headers
+names(train) <- feature
+train <- na.omit(train)
+names(test) <- feature
+test <- na.omit(test)
+train$IncomeCLASS <- as.factor(train$IncomeCLASS)
+test$IncomeCLASS <- as.factor(test$IncomeCLASS)
+levels(train$IncomeCLASS) <- c("Under_50K", "More_50K")
+levels(test$IncomeCLASS) <- c("Under_50K", "More_50K")
+(table(complete.cases(train)))
+
+
+
+round(prop.table(table(train$IncomeCLASS))*100)
+
+```
+
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+impute.mean <- function(x) replace(x, is.na(x) | is.nan(x) | is.infinite(x), mean(x[!is.na(x) & !is.nan(x) & !is.infinite(x)]))
+losses <- apply(train, 2, impute.mean)
+sum(apply( losses, 2, function(.) sum(is.infinite(.)) ))
+
+impute.mean <- function(x) replace(x, is.na(x) | is.nan(x) | is.infinite(x), mean(x[!is.na(x) & !is.nan(x) & !is.infinite(x)]))
+losses <- apply(test, 2, impute.mean)
+sum(apply( losses, 2, function(.) sum(is.infinite(.)) ))
+
+```
+
+
+
+###SETTING CATEGORICAL; FEATURES
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+train$Native_Country <- NULL
+train$Work_Class <- as.factor(train$Work_Class)
+train$Education <- as.factor(train$Education)
+train$Marital_Status <- as.factor(train$Marital_Status)
+train$Occupation <- as.factor(train$Occupation)
+train$Relationship <- as.factor(train$Relationship)
+train$Race <- as.factor(train$Race)
+train$Sex <- as.factor(train$Sex)
+
+test$Native_Country <- NULL
+train$Work_Class <- as.factor(train$Work_Class)
+test$Work_Class <- as.factor(test$Work_Class)
+test$Education <- as.factor(test$Education)
+test$Marital_Status <- as.factor(test$Marital_Status)
+test$Occupation <- as.factor(test$Occupation)
+test$Relationship <- as.factor(test$Relationship)
+test$Race <- as.factor(test$Race)
+test$Sex <- as.factor(test$Sex)
+
+levels(train$IncomeCLASS) <- c("Under_50K", "More_50K")
+levels(test$IncomeCLASS) <- c("Under_50K", "More_50K")
+
+train$IncomeCLASS <- as.factor(train$IncomeCLASS)
+test$IncomeCLASS <- as.factor(test$IncomeCLASS)
+
+```
+
+
+
+
+
+#EXPLORATORY DATA ANALYSIS USING GGPLOT
+```{r, echo = TRUE, message=FALSE, warning=FALSE}
+P <- ggplot(train,aes(x = Age, fill = IncomeCLASS)) + geom_bar(position = "fill", color = "black") + coord_flip()
+P1 <- P + labs(title = "Age vs Income Class Proportion")
+P1
+    ```
+
+
+
+
+```{r, echo = TRUE, message=FALSE, warning=FALSE}
+P2 <- ggplot(train,aes(x = Age, fill = IncomeCLASS)) + geom_bar(position = "fill", color = "black") + coord_flip()
+P3 <- P2 + labs(title = "Age vs Income Class Proportion")
+P3
+```
+
+
+
+
+```{r, echo = TRUE, message=FALSE, warning=FALSE}
+Q <- ggplot(train,aes(x = Education, fill = IncomeCLASS)) + geom_bar() + coord_flip()
+Q1 <- Q + labs(title = "Education vs Income Class Proportion")
+Q1
+```
+
+
+
+```{r, echo = TRUE, message=FALSE, warning=FALSE}
+R <- train %>% ggplot(aes(x = Work_Class, fill = IncomeCLASS)) + geom_bar(position = "fill", color = "black") + coord_flip()
+R1 <- R + labs(title = "Work_Class vs Income Class Proportion")
+R1
+```
+
+We find that the people employed in private companies have more people with income above 50k and Self Employed people having a higher proportion of peoplw with income greater than 50k.
+
+
+
+```{r, echo = TRUE, message=FALSE, warning=FALSE}
+S <- ggplot(train,aes(x = Education_Num, fill = IncomeCLASS)) + ggtitle("Length of Eduction VS Income Class Proportion") + xlab("Years of Education") + ylab("proportion within category") + geom_bar(fill = "green", color = "black") + coord_flip()
+S1 <- S + labs(title = "Education_Num, vs Income Class Proportion")
+S1
+
+
+```
+
+
+```{r, echo = TRUE, message=FALSE, warning=FALSE}
+T <- ggplot(train,aes(x = Relationship, fill = IncomeCLASS)) + ggtitle("Relationship VS Income Class Proportion") + xlab("Relationship") + ylab("proportion within category") + geom_bar(position = "fill", color = "black") + coord_flip()
+T1 <- T + labs(title = "Relationship vs Income Class Proportion")
+ggplotly(T1)
+
+
+```
+
+
+```{r, echo = TRUE, message=FALSE, warning=FALSE}
+jj <- ggplot(train,aes(x = Occupation, fill = IncomeCLASS)) + ggtitle("Occupation VS Income Class Proportion") + xlab("Occupation") + ylab("proportion within category") + geom_bar(position = "fill", color = "black") + coord_flip()
+jj
+
+```
+
+
+PERFORMANCE METRICS for MODEL SELECTION:
+
+Accuracy Statistic:
+Kappa Statistic:
+
+#NAIVE BAYES MODEL
+```{r, echo = TRUE, message=FALSE, warning=FALSE}
+#train Naive Bayes
+model_Naive <- naiveBayes(IncomeCLASS ~ ., data = train)
+pred_Nb <- predict(model_Naive, test)
+confusionMatrix(pred_Nb, test$IncomeCLASS)
+CrossTable(pred_Nb, test$IncomeCLASS)
+
+summary(pred_Nb)
+cm_Nb <- data.frame(confusionMatrix(pred_Nb, test$IncomeCLASS)[3])
+kable(cm_Nb)
+```
+
+
+
+
+
+
+##TRAIN THE RPART DECISION TREE MODEL
+```{r, echo = TRUE, message=FALSE, warning=FALSE}
+# rpart decision tree 
+set.seed(32323)
+V <- 10
+T <- 4
+TrControl <- trainControl(method = "repeatedcv",
+                          number = V,
+                          repeats = T)
+
+
+model_part <- caret::train(IncomeCLASS ~., data = train, method = "rpart",  control = rpart::rpart.control(minsplit = 5, cp = 0), tuneGrid = data.frame(cp = .02), trControl = TrControl)
+pred_rpart <- predict(model_part, test, type = "raw")
+
+confusionMatrix(pred_rpart, test$IncomeCLASS)
+CrossTable(pred_rpart, test$IncomeCLASS)
+summary(pred_rpart)
+
+model_part$finalModel
+cm_rpart <- data.frame(confusionMatrix(pred_rpart, test$IncomeCLASS)[3])
+kable(cm_rpart)
+rpart.plot(model_part$finalModel)
+
+```
+
+
+
+
+
+
+##TRAIN THE RANDOM FOREST MODEL
+```{r, echo = TRUE, eval = FALSE, message=FALSE, warning=FALSE}
+model.rf <- randomForest(IncomeCLASS~., data = train, ntree = 750, importance = TRUE)
+pred.rf <- predict(model.rf, test)
+summary(pred.rf)
+plot(model.rf)
+confusionMatrix(test$IncomeCLASS, pred.rf)
+cm.rf <- data.frame(confusionMatrix(pred.rf, test$IncomeCLASS)[3])
+kable(cm.rf)
+
+
+```
+
+
+
+
+
+
+# NEURAL NETWORKS
+```{r, echo = TRUE, message = FALSE, warning=FALSE}
+train_n <- train %>% sapply(as.numeric)
+train_n <- as.data.frame(train_n)
+
+model_neural <-  neuralnet(IncomeCLASS ~ ., data = train_n, hidden = 1, rep = 5, act.fct = "logistic", linear.output = FALSE)
+1
+
+plot(model_neural, rep = "best")
+```
+
+
+### summarize results
+```{r, echo = TRUE, message=FALSE, warning=FALSE}
+summary(model_neural)
+```
+```{r, echo=TRUE}
+test_n <- as.matrix(sapply(test, as.numeric))
+test_n <- as.data.frame(test_n)
+model_pred <- compute(model_neural, test_n)
+pr.nn <- model_pred$net.result
+```
+
+## Accuracy (test set)
+```{r, echo=TRUE}
+for (i in length(train))
+original_values <- test_n[,14]
+pr.nn_2 <- max.col(pr.nn)
+outs <- mean(pr.nn_2 == original_values)
+outs
+```
+
+#FINAL MODEL COMPARISON
+
+###RPART
+```{r, echo=TRUE}
+kable(cm_rpart)
+```
+
+###RANDOM FOREST
+
+                                              ####                    overall|
+                                              ####|:--------------|---------:|
+                                              ####|Accuracy       | 0.8643818|
+                                              ####|Kappa          | 0.6007945|
+                                              ####|AccuracyLower  | 0.8590268|
+                                              ####|AccuracyUpper  | 0.8696063|
+                                              ####|AccuracyNull   | 0.7637737|
+                                              ####|AccuracyPValue | 0.0000000|
+                                              ####|McnemarPValue  | 0.0000000|
+
+
+###NEURAL NETWORK
+```{r, echo=TRUE}
+cor(max.col(pr.nn), test_n[,14])
+Accuracy <- mean(pr.nn_2 == original_values)
+Accuracy
+
+```
+
+
+
+# CONCLUSIONS:
+The analysis confirmed (and quantified) what is considered common sense:
+
+Age, education, occupation, and marital status (or relationship kind) are good for predicting income (above a certain threshold).
+
+(1) if a person earns more than $50000 he is very likely to be a married man with large number of years of education;
+(2) single parents, younger than 25 years, who studied less than 10 years, and were never-married make less than $50000.
+
+
+#Inferences
+
+About 46% of the people are in a relationship called “Husband” or “Wife” which is then further classified based on Education Level where nearly 14% who earn above $50 K have the education of Bachelors, Prof-school, Masters and Doctorate.
+
+The other education levels have income predominantly below $50 k with just 2% having salaries above $50k who also have capital gains greater than $5096
+
+With respect to other relationships, only 1% have income above $50 k and with capital gains greater than $7074.
+
+
+In the relationship of Education and Number of People Earning > 50 k and separated by Work Class. We find that Bachelors graduates working in Private companies have a higher number of people earning above 50 k.                  
+
+
+
+In the relationship of Average hours per week with respect to gender and separated by Work Class and we find that Males typically work more hours per week on Average across all work classes.
+
+
+
+The third sheet shows that the relationship of marital status and income levels separated by Work Class. Majority of the people in Married with Civilian spouse have an income greater than 50 k and majorly in the private sector.
+
+
+
+The fourth work sheet shows the impact of occupation, capital gain and capital loss on the income levels which has details of work class too. This is a comprehensive visualization across 4 different parameters. We find that Executives at Managerial Level have more people with income greater than 50 k and Professional Speciality has more capital gains.
